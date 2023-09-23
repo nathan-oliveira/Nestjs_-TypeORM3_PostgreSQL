@@ -1,0 +1,145 @@
+A seguir apresento a maneira pela qual eu fui capaz de realizar as migrações corrigindo erros apresentados por outros alunos e sem alterar a versão do TypeORM que vem embarcada no NestJS.
+
+Observação: note que eu usei o npm e não o npx. Por algum motivo o npx causou erro. Para poder usar o npm é necessário instalar o typeorm globalmente Instalando o TypeOrm globalmente:
+
+npm i -g typeorm
+
+
+Observação:  Criei a parte de configuração do banco de dados do meu projeto usando a documentação Técnicas de Banco de Dados do NestJS ao invés da Receitas do TypeORM, já que a primeira usa o módulo do TypeORM que já vem embarcado do NestJS e evita sobrecarga, de acordo com a própria documentação do NestJS.
+*https://docs.nestjs.com/techniques/database
+
+
+Primeiramente crie um arquivo typeOrm.config.ts na raiz do projeto (que vai ser um arquivo diferente da configuração do banco que está dentro do src):
+
+```
+import { DataSource } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+ 
+const configService = new ConfigService();
+ 
+export default new DataSource({
+  type: 'mysql',
+  host: configService.get('VDT_DB_HOST'),
+  port: Number(configService.get('VDT_PORT')),
+  username: configService.get('VDT_USER'),
+  password: configService.get('VDT_ROOT_PASSWORD'),
+  database: configService.get('VDT_DATABASE'),
+  entities: ['dist/**/*.entity.js'],
+  migrations: [__dirname + '/src/migrations/*.ts'],
+});
+
+```
+
+Observação: Note que o item migrations, nos parâmetros de DataSource, contém a listagem das migrações que serão executadas.
+
+O código acima conterá um erro pois a classe ConfigService pertence do módulo @nestjs/config, que não vem instalado no NestJS por padrão.  Para corrigir instale o @nestjs/config:
+
+npm i --save @nestjs/config
+
+
+
+Gerando uma migração:
+
+npm run typeorm -- -d ./typeOrm.config.ts migration:generate ./migrations/NomeDaMigracao
+
+
+
+Criando uma migração (template para migrações):
+
+npm run typeorm -- migration:create ./migrations/NomeDaMigracao
+
+
+
+Observação: as migrações que serão rodadas ou desfeitas são as que estão definidas no campo migrations do DataSource no arquivo typeOrm.config.ts.
+
+
+
+Rodando uma migração:
+
+npm run typeorm -- -d ./typeOrm.config.ts migration:run
+
+
+
+Desfazendo uma migração:
+
+npm run typeorm -- -d ./typeOrm.config.ts migration:revert
+
+
+=============================================================================================================================================================================================
+
+
+Atualização para versão nest 10.0.0 e typeorm 0.3.17
+Adicionar essas linhas no arquivo package.json
+
+Para rodar no docker na versão 10 do nest.js
+
+
+Dockerfile 
+```
+FROM node:16.20.1-alpine
+ 
+RUN apk add --no-cache bash
+ 
+RUN npm install -g @nestjs/cli
+RUN npm i -g typeorm
+ 
+USER node
+ 
+WORKDIR /home/node/app
+```
+
+
+
+entrypoint.sh
+```
+#!/bin/sh
+exec "$@"
+yarn install
+yarn build
+yarn typeorm:migrate
+yarn start:dev
+```
+
+
+
+package.json
+```
+"typeorm": "npx typeorm-ts-node-commonjs --dataSource typeOrm.config.ts",
+"typeorm:migrate": "yarn typeorm migration:run",
+"typeorm:generate": "yarn typeorm migration:generate migrations/Migration --timestamp",
+"typeorm:revert": "yarn typeorm migration:revert"
+```
+
+
+
+typeOrm.config.ts
+```
+import { DataSource } from 'typeorm';
+ 
+import { config } from 'dotenv';
+import { ConfigService } from '@nestjs/config';
+ 
+config();
+ 
+const configService = new ConfigService();
+ 
+export default new DataSource({
+  type: 'postgres',
+  host: 'db',
+  port: 5432,
+  username: 'postgres',
+  password: 'docker',
+  database: 'cursonestjs',
+  entities: [__dirname + '/src/**/*.entity{.ts,.js}'],
+  migrations: ['migrations/*.ts'],
+});
+```
+
+
+
+
+
+
+
+
+
